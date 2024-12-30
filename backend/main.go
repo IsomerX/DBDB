@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+
+	"github.com/blastrain/vitess-sqlparser/sqlparser"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +24,6 @@ func uploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing multipart form", http.StatusBadRequest)
 		return
 	}
-
 	file, header, err := r.FormFile("sqlfile")
 	if err != nil {
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
@@ -33,13 +35,13 @@ func uploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("File Size: %+v\n", header.Size)
 	fmt.Printf("MIME Header: %+v\n", header.Header)
 
-	_, err = io.ReadAll(file)
+	sqlContent, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, "Error reading the file", http.StatusInternalServerError)
 		return
 	}
 
-	if processSQLFile() {
+	if processSQLFile(string(sqlContent)) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "SQL file processed successfully")
 	} else {
@@ -47,8 +49,27 @@ func uploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func processSQLFile() bool {
-	// Dummy function to process SQL file
+func processSQLFile(sqlString string) bool {
+	// Trim unnecessary whitespace
+	sqlString = strings.TrimSpace(sqlString)
+
+	// Check and remove BOM if present
+	if strings.HasPrefix(sqlString, "\ufeff") {
+		sqlString = strings.TrimPrefix(sqlString, "\ufeff")
+	}
+
+	// Log the raw content for debugging
+	fmt.Printf("Processed SQL Content: %q\n", sqlString)
+
+	// Parse the SQL string
+	stmt, err := sqlparser.Parse(sqlString)
+	if err != nil {
+		fmt.Printf("Error parsing SQL: %v\n", err)
+		return false
+	}
+
+	// Successfully parsed SQL
+	fmt.Printf("Parsed Statement: %+v\n", stmt)
 	return true
 }
 
